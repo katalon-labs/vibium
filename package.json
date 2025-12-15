@@ -1,0 +1,7 @@
+{
+  "name": "vibium",
+  "private": true,
+  "workspaces": [
+    "clients/javascript"
+  ]
+}

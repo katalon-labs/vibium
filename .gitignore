@@ -30,3 +30,13 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Node.js
+node_modules/
+
+# TypeScript build output
+dist/
+
+# Clicker binaries
+clicker/bin/
+clicker/clicker
