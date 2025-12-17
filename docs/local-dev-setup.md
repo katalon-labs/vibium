@@ -20,7 +20,7 @@ Assuming macOS VM dev on macOS (via UTM).
 
 ## Install UTM (on host)
 
-- Install UTM on your host Mac
+- Download UTM from https://mac.getutm.app or `brew install --cask utm`
 - Create a macOS VM
 - Install Guest Tools (so clipboard can be shared between guest and host)
 
