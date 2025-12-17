@@ -46,6 +46,13 @@ type InstallResult struct {
 // Install downloads and installs Chrome for Testing and chromedriver.
 // Returns paths to the installed binaries.
 func Install() (*InstallResult, error) {
+	return InstallVersion("")
+}
+
+// InstallVersion downloads and installs a specific version of Chrome for Testing.
+// If version is empty, fetches the latest stable version from the API.
+// Returns paths to the installed binaries.
+func InstallVersion(version string) (*InstallResult, error) {
 	// Check for skip environment variable
 	if os.Getenv("VIBIUM_SKIP_BROWSER_DOWNLOAD") == "1" {
 		return nil, fmt.Errorf("browser download skipped (VIBIUM_SKIP_BROWSER_DOWNLOAD=1)")
@@ -53,10 +60,18 @@ func Install() (*InstallResult, error) {
 
 	platform := paths.GetPlatformString()
 
-	// Fetch latest stable version info
-	versionInfo, err := fetchLatestStableVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch version info: %w", err)
+	var versionInfo *VersionInfo
+	var err error
+
+	if version == "" {
+		// Fetch latest stable version info
+		versionInfo, err = fetchLatestStableVersion()
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch version info: %w", err)
+		}
+	} else {
+		// Use provided version with direct URLs
+		versionInfo = buildVersionInfo(version, platform)
 	}
 
 	fmt.Printf("Installing Chrome for Testing v%s...\n", versionInfo.Version)
@@ -116,6 +131,22 @@ func Install() (*InstallResult, error) {
 		ChromedriverPath: chromedriverPath,
 		Version:          versionInfo.Version,
 	}, nil
+}
+
+// buildVersionInfo constructs version info with direct download URLs for a specific version.
+func buildVersionInfo(version, platform string) *VersionInfo {
+	baseURL := "https://storage.googleapis.com/chrome-for-testing-public"
+	return &VersionInfo{
+		Version: version,
+		Downloads: map[string][]Download{
+			"chrome": {
+				{Platform: platform, URL: fmt.Sprintf("%s/%s/%s/chrome-%s.zip", baseURL, version, platform, platform)},
+			},
+			"chromedriver": {
+				{Platform: platform, URL: fmt.Sprintf("%s/%s/%s/chromedriver-%s.zip", baseURL, version, platform, platform)},
+			},
+		},
+	}
 }
 
 // fetchLatestStableVersion fetches the latest stable Chrome for Testing version.

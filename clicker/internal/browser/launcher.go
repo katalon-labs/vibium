@@ -185,6 +185,7 @@ func createSession(baseURL, chromePath string, headless, verbose bool) (string, 
 	args := []string{
 		"--no-first-run",
 		"--no-default-browser-check",
+		"--no-sandbox", // Required for containerized environments
 		"--disable-infobars",
 		"--disable-blink-features=AutomationControlled",
 		"--disable-crash-reporter",
