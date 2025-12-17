@@ -183,6 +183,7 @@ func waitForChromedriver(baseURL string, timeout time.Duration) error {
 // createSession creates a new WebDriver session with BiDi enabled.
 func createSession(baseURL, chromePath string, headless, verbose bool) (string, string, error) {
 	args := []string{
+		"--no-sandbox",
 		"--no-first-run",
 		"--no-default-browser-check",
 		"--disable-infobars",
