@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,6 +14,29 @@ import (
 
 	"github.com/vibium/clicker/internal/paths"
 )
+
+// getHTTPClient returns an HTTP client configured to use proxy from environment.
+// This is needed because NO_PROXY may include googleapis.com, but direct DNS
+// resolution may not be available, so we force proxy usage.
+func getHTTPClient() *http.Client {
+	transport := &http.Transport{}
+
+	// Check for HTTPS_PROXY or HTTP_PROXY
+	if proxyURL := os.Getenv("HTTPS_PROXY"); proxyURL != "" {
+		if u, err := url.Parse(proxyURL); err == nil {
+			transport.Proxy = http.ProxyURL(u)
+		}
+	} else if proxyURL := os.Getenv("HTTP_PROXY"); proxyURL != "" {
+		if u, err := url.Parse(proxyURL); err == nil {
+			transport.Proxy = http.ProxyURL(u)
+		}
+	} else {
+		// Fall back to default proxy behavior
+		transport.Proxy = http.ProxyFromEnvironment
+	}
+
+	return &http.Client{Transport: transport}
+}
 
 const (
 	knownGoodVersionsURL = "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json"
@@ -184,7 +208,8 @@ func InstallVersion(version string) (*InstallResult, error) {
 
 // fetchLatestStableVersion fetches the latest stable Chrome for Testing version.
 func fetchLatestStableVersion() (*VersionInfo, error) {
-	resp, err := http.Get(lastKnownGoodURL)
+	client := getHTTPClient()
+	resp, err := client.Get(lastKnownGoodURL)
 	if err != nil {
 		return nil, err
 	}
@@ -219,8 +244,9 @@ func findDownloadURL(downloads []Download, platform string) string {
 
 // downloadAndExtract downloads a zip file and extracts it to the destination.
 func downloadAndExtract(url, destDir string) error {
-	// Download to temp file
-	resp, err := http.Get(url)
+	// Download to temp file using proxy-aware client
+	client := getHTTPClient()
+	resp, err := client.Get(url)
 	if err != nil {
 		return err
 	}
