@@ -222,7 +222,9 @@ func main() {
 	screenshotCmd := &cobra.Command{
 		Use:   "screenshot [url]",
 		Short: "Navigate to a URL and capture a screenshot",
-		Args:  cobra.ExactArgs(1),
+		Example: `  clicker screenshot https://example.com -o shot.png
+  # Saves screenshot to shot.png`,
+		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			url := args[0]
 			output, _ := cmd.Flags().GetString("output")
