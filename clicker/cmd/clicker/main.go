@@ -92,11 +92,25 @@ func main() {
 		},
 	})
 
-	rootCmd.AddCommand(&cobra.Command{
+	installCmd := &cobra.Command{
 		Use:   "install",
 		Short: "Download Chrome for Testing and chromedriver",
+		Example: `  clicker install --version 131.0.6778.204
+  # Downloads specific version from storage.googleapis.com`,
 		Run: func(cmd *cobra.Command, args []string) {
-			result, err := browser.Install()
+			version, _ := cmd.Flags().GetString("version")
+
+			var result *browser.InstallResult
+			var err error
+
+			if version != "" {
+				// Use direct download from storage.googleapis.com
+				result, err = browser.InstallVersion(version)
+			} else {
+				// Fetch latest from googlechromelabs.github.io
+				result, err = browser.Install()
+			}
+
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
@@ -107,7 +121,9 @@ func main() {
 			fmt.Printf("Chromedriver: %s\n", result.ChromedriverPath)
 			fmt.Printf("Version: %s\n", result.Version)
 		},
-	})
+	}
+	installCmd.Flags().String("version", "", "Specific Chrome version to install (e.g., 131.0.6778.204)")
+	rootCmd.AddCommand(installCmd)
 
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "launch-test",

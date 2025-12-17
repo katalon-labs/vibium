@@ -17,6 +17,7 @@ import (
 const (
 	knownGoodVersionsURL = "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json"
 	lastKnownGoodURL     = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
+	storageBaseURL       = "https://storage.googleapis.com/chrome-for-testing-public"
 )
 
 // VersionInfo represents the Chrome for Testing version information.
@@ -115,6 +116,69 @@ func Install() (*InstallResult, error) {
 		ChromePath:       chromePath,
 		ChromedriverPath: chromedriverPath,
 		Version:          versionInfo.Version,
+	}, nil
+}
+
+// InstallVersion downloads and installs a specific version of Chrome for Testing.
+// Downloads directly from storage.googleapis.com without fetching version metadata.
+// Example version: "131.0.6778.204"
+func InstallVersion(version string) (*InstallResult, error) {
+	// Check for skip environment variable
+	if os.Getenv("VIBIUM_SKIP_BROWSER_DOWNLOAD") == "1" {
+		return nil, fmt.Errorf("browser download skipped (VIBIUM_SKIP_BROWSER_DOWNLOAD=1)")
+	}
+
+	platform := paths.GetPlatformString()
+
+	fmt.Printf("Installing Chrome for Testing v%s...\n", version)
+
+	// Create version directory
+	cftDir, err := paths.GetChromeForTestingDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cache dir: %w", err)
+	}
+
+	versionDir := filepath.Join(cftDir, version)
+	if err := os.MkdirAll(versionDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create version dir: %w", err)
+	}
+
+	// Build direct download URLs for storage.googleapis.com
+	// Format: https://storage.googleapis.com/chrome-for-testing-public/{version}/{platform}/chrome-{platform}.zip
+	chromeURL := fmt.Sprintf("%s/%s/%s/chrome-%s.zip", storageBaseURL, version, platform, platform)
+	chromedriverURL := fmt.Sprintf("%s/%s/%s/chromedriver-%s.zip", storageBaseURL, version, platform, platform)
+
+	fmt.Printf("Downloading Chrome from %s...\n", chromeURL)
+	if err := downloadAndExtract(chromeURL, versionDir); err != nil {
+		return nil, fmt.Errorf("failed to install Chrome: %w", err)
+	}
+
+	fmt.Printf("Downloading chromedriver from %s...\n", chromedriverURL)
+	if err := downloadAndExtract(chromedriverURL, versionDir); err != nil {
+		return nil, fmt.Errorf("failed to install chromedriver: %w", err)
+	}
+
+	// Get paths to installed binaries
+	chromePath, err := paths.GetChromeExecutable()
+	if err != nil {
+		return nil, fmt.Errorf("Chrome installed but not found: %w", err)
+	}
+
+	chromedriverPath, err := paths.GetChromedriverPath()
+	if err != nil {
+		return nil, fmt.Errorf("chromedriver installed but not found: %w", err)
+	}
+
+	// Make executable on Unix
+	if runtime.GOOS != "windows" {
+		os.Chmod(chromePath, 0755)
+		os.Chmod(chromedriverPath, 0755)
+	}
+
+	return &InstallResult{
+		ChromePath:       chromePath,
+		ChromedriverPath: chromedriverPath,
+		Version:          version,
 	}, nil
 }
 
