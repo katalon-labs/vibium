@@ -69,41 +69,83 @@ vibium/
 │
 ├── clients/
 │   │
-│   └── javascript/                       # JS/TS Client Library
-│       ├── package.json
-│       ├── tsconfig.json
-│       ├── tsup.config.ts                # Build config
-│       ├── vitest.config.ts              # Test config
+│   ├── javascript/                       # JS/TS Client Library
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   ├── tsup.config.ts                # Build config
+│   │   ├── vitest.config.ts              # Test config
+│   │   │
+│   │   ├── src/
+│   │   │   ├── index.ts                  # Main exports
+│   │   │   ├── browser.ts                # browser.launch() entry (async)
+│   │   │   ├── vibe.ts                   # Vibe class (async API)
+│   │   │   ├── element.ts                # Element class (async)
+│   │   │   │
+│   │   │   ├── sync/                     # Sync API Wrappers
+│   │   │   │   ├── browser.ts            # browserSync.launch()
+│   │   │   │   ├── vibe.ts               # VibeSync class
+│   │   │   │   └── element.ts            # ElementSync class
+│   │   │   │
+│   │   │   ├── clicker/                  # Clicker Binary Management
+│   │   │   │   ├── binary.ts             # Binary path resolution
+│   │   │   │   ├── process.ts            # Spawn & manage clicker
+│   │   │   │   └── platform.ts           # Platform detection
+│   │   │   │
+│   │   │   ├── bidi/                     # BiDi Client
+│   │   │   │   ├── connection.ts         # WebSocket connection
+│   │   │   │   ├── client.ts             # BiDi command client
+│   │   │   │   └── types.ts              # BiDi type definitions
+│   │   │   │
+│   │   │   └── utils/
+│   │   │       ├── errors.ts             # Error classes
+│   │   │       └── timeout.ts            # Promise timeout wrapper
+│   │   │
+│   │   └── test/
+│   │       ├── browser.test.ts
+│   │       ├── vibe.test.ts
+│   │       └── element.test.ts
+│   │
+│   └── java/                             # Java Client Library
+│       ├── pom.xml                       # Maven build (generates fat JAR)
 │       │
-│       ├── src/
-│       │   ├── index.ts                  # Main exports
-│       │   ├── browser.ts                # browser.launch() entry (async)
-│       │   ├── vibe.ts                   # Vibe class (async API)
-│       │   ├── element.ts                # Element class (async)
+│       ├── src/main/java/com/vibium/
+│       │   ├── Browser.java              # Browser.launch() entry point
+│       │   ├── Vibe.java                 # Vibe class (go, screenshot, quit)
+│       │   ├── LaunchOptions.java        # Launch configuration (builder)
 │       │   │
-│       │   ├── sync/                     # Sync API Wrappers
-│       │   │   ├── browser.ts            # browserSync.launch()
-│       │   │   ├── vibe.ts               # VibeSync class
-│       │   │   └── element.ts            # ElementSync class
+│       │   ├── bidi/                     # BiDi Protocol Layer
+│       │   │   ├── BiDiConnection.java   # WebSocket client
+│       │   │   ├── BiDiClient.java       # Command/response handling
+│       │   │   ├── BiDiCommand.java      # Command record
+│       │   │   ├── BiDiResponse.java     # Response record
+│       │   │   ├── BiDiEvent.java        # Event record
+│       │   │   ├── BiDiError.java        # Error record
+│       │   │   └── types/
+│       │   │       ├── BrowsingContextInfo.java
+│       │   │       ├── BrowsingContextTree.java
+│       │   │       ├── NavigationResult.java
+│       │   │       └── ScreenshotResult.java
 │       │   │
 │       │   ├── clicker/                  # Clicker Binary Management
-│       │   │   ├── binary.ts             # Binary path resolution
-│       │   │   ├── process.ts            # Spawn & manage clicker
-│       │   │   └── platform.ts           # Platform detection
+│       │   │   ├── BinaryResolver.java   # Binary path resolution
+│       │   │   ├── ClickerProcess.java   # Spawn & manage clicker
+│       │   │   └── Platform.java         # OS/arch detection
 │       │   │
-│       │   ├── bidi/                     # BiDi Client
-│       │   │   ├── connection.ts         # WebSocket connection
-│       │   │   ├── client.ts             # BiDi command client
-│       │   │   └── types.ts              # BiDi type definitions
-│       │   │
-│       │   └── utils/
-│       │       ├── errors.ts             # Error classes
-│       │       └── timeout.ts            # Promise timeout wrapper
+│       │   └── exceptions/
+│       │       ├── VibiumException.java
+│       │       ├── ConnectionException.java
+│       │       └── TimeoutException.java
 │       │
-│       └── test/
-│           ├── browser.test.ts
-│           ├── vibe.test.ts
-│           └── element.test.ts
+│       ├── src/test/java/com/vibium/
+│       │   └── BrowserTest.java          # Integration tests
+│       │
+│       ├── examples/
+│       │   └── Screenshot.java           # Example usage
+│       │
+│       └── target/                       # Build output (gitignored)
+│           ├── vibium-*-all.jar          # Fat JAR for Katalon Studio
+│           ├── vibium-*.jar              # Slim JAR
+│           └── vibium-*-sources.jar      # Sources JAR
 │
 ├── packages/                             # Platform-specific npm packages
 │   ├── vibium/                           # Main package (re-exports)
