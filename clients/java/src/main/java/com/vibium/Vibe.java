@@ -1,14 +1,19 @@
 package com.vibium;
 
+import com.google.gson.Gson;
 import com.vibium.bidi.BiDiClient;
+import com.vibium.bidi.types.BoundingBox;
 import com.vibium.bidi.types.BrowsingContextTree;
+import com.vibium.bidi.types.ElementInfo;
 import com.vibium.bidi.types.NavigationResult;
 import com.vibium.bidi.types.ScreenshotResult;
+import com.vibium.bidi.types.ScriptResult;
 import com.vibium.clicker.ClickerProcess;
 import com.vibium.exceptions.VibiumException;
 
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -16,6 +21,7 @@ import java.util.Map;
  * Mirrors clients/javascript/src/vibe.ts
  */
 public class Vibe implements AutoCloseable {
+    private static final Gson gson = new Gson();
 
     private final BiDiClient client;
     private final ClickerProcess process;
@@ -78,6 +84,48 @@ public class Vibe implements AutoCloseable {
         );
 
         return Base64.getDecoder().decode(result.data());
+    }
+
+    /**
+     * Find an element by CSS selector.
+     *
+     * @param selector The CSS selector
+     * @return The element
+     * @throws VibiumException if the element is not found
+     */
+    public Element find(String selector) {
+        String ctx = getContext();
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("functionDeclaration", """
+            (selector) => {
+                const el = document.querySelector(selector);
+                if (!el) return null;
+                const rect = el.getBoundingClientRect();
+                return JSON.stringify({
+                    tag: el.tagName,
+                    text: (el.textContent || '').trim().substring(0, 100),
+                    box: {
+                        x: rect.x,
+                        y: rect.y,
+                        width: rect.width,
+                        height: rect.height
+                    }
+                });
+            }""");
+        params.put("target", Map.of("context", ctx));
+        params.put("arguments", List.of(Map.of("type", "string", "value", selector)));
+        params.put("awaitPromise", false);
+        params.put("resultOwnership", "root");
+
+        ScriptResult result = client.send("script.callFunction", params, ScriptResult.class);
+
+        if ("null".equals(result.result().type())) {
+            throw new VibiumException("Element not found: " + selector);
+        }
+
+        ElementInfo info = gson.fromJson(result.result().value().toString(), ElementInfo.class);
+        return new Element(client, ctx, selector, info);
     }
 
     /**
