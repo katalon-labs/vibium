@@ -215,6 +215,11 @@ func createSession(baseURL, chromePath string, headless, verbose bool) (string, 
 		args = append(args, "--headless=new")
 	}
 
+	// Support running in containers/as root where sandbox isn't available
+	if os.Getenv("CLICKER_NO_SANDBOX") == "1" {
+		args = append(args, "--no-sandbox")
+	}
+
 	reqBody := map[string]interface{}{
 		"capabilities": map[string]interface{}{
 			"alwaysMatch": map[string]interface{}{
