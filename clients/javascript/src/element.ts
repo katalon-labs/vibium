@@ -21,11 +21,16 @@ export interface ScriptResult {
   };
 }
 
+export interface ActionOptions {
+  /** Timeout in milliseconds for actionability checks. Default: 30000 */
+  timeout?: number;
+}
+
 export class Element {
   private client: BiDiClient;
   private context: string;
   private selector: string;
-  private info: ElementInfo;
+  readonly info: ElementInfo;
 
   constructor(
     client: BiDiClient,
@@ -39,52 +44,28 @@ export class Element {
     this.info = info;
   }
 
-  async click(): Promise<void> {
-    const { x, y } = this.getCenter();
-
-    const actions = [
-      {
-        type: 'pointer',
-        id: 'mouse',
-        parameters: { pointerType: 'mouse' },
-        actions: [
-          { type: 'pointerMove', x: Math.round(x), y: Math.round(y), duration: 0 },
-          { type: 'pointerDown', button: 0 },
-          { type: 'pointerUp', button: 0 },
-        ],
-      },
-    ];
-
-    await this.client.send('input.performActions', {
+  /**
+   * Click the element.
+   * Waits for element to be visible, stable, receive events, and enabled.
+   */
+  async click(options?: ActionOptions): Promise<void> {
+    await this.client.send('vibium:click', {
       context: this.context,
-      actions,
+      selector: this.selector,
+      timeout: options?.timeout,
     });
   }
 
-  async type(text: string): Promise<void> {
-    // Click to focus first
-    await this.click();
-
-    // Build key actions for each character
-    const keyActions: Array<{ type: string; value: string }> = [];
-    for (const char of text) {
-      keyActions.push(
-        { type: 'keyDown', value: char },
-        { type: 'keyUp', value: char }
-      );
-    }
-
-    const actions = [
-      {
-        type: 'key',
-        id: 'keyboard',
-        actions: keyActions,
-      },
-    ];
-
-    await this.client.send('input.performActions', {
+  /**
+   * Type text into the element.
+   * Waits for element to be visible, stable, receive events, enabled, and editable.
+   */
+  async type(text: string, options?: ActionOptions): Promise<void> {
+    await this.client.send('vibium:type', {
       context: this.context,
-      actions,
+      selector: this.selector,
+      text,
+      timeout: options?.timeout,
     });
   }
 

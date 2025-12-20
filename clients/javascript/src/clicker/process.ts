@@ -49,7 +49,8 @@ export class ClickerProcess {
       }, 10000);
 
       const handleData = (data: Buffer) => {
-        output += data.toString();
+        const text = data.toString();
+        output += text;
 
         // Look for "Server listening on ws://localhost:PORT"
         const match = output.match(/Server listening on ws:\/\/localhost:(\d+)/);

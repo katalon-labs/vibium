@@ -450,7 +450,7 @@ await vibe.quit();
 
 ---
 
-## Day 8: JS Client - Elements & Sync API
+## ✅ Day 8: JS Client - Elements & Sync API
 
 ### Milestone 8.1: Element Class (Async)
 ```
@@ -507,46 +507,123 @@ vibe.quit();
 
 ---
 
-## Day 9: Auto-Wait
+## Day 9: Actionability (Playwright-style)
 
-### Milestone 9.1: Wait Logic (Go)
+### Actionability Checks (like Playwright)
+
+| Check | Definition | How to verify |
+|-------|------------|---------------|
+| **Visible** | Non-empty bounding box, no `visibility:hidden` | `getBoundingClientRect()`, `getComputedStyle()` |
+| **Stable** | Same bounding box for 2 consecutive checks | Compare box at t and t+50ms |
+| **ReceivesEvents** | Element is hit target at action point | `elementFromPoint()` at center |
+| **Enabled** | Not `[disabled]` or `[aria-disabled=true]` | Check attributes |
+| **Editable** | Enabled + not `[readonly]` or `[aria-readonly=true]` | Check attributes |
+
+**Action requirements:**
+- `click()` → Visible, Stable, ReceivesEvents, Enabled
+- `type()` → Visible, Stable, ReceivesEvents, Enabled, Editable
+- `find()` → Just existence (no actionability checks)
+
+### Milestone 9.1: Actionability Checks (Go)
+```
+Implement internal/features/actionability.go:
+
+Individual check functions (all via script.callFunction):
+- CheckVisible(context, selector) → bool
+- CheckStable(context, selector) → bool (compare box at 50ms interval)
+- CheckReceivesEvents(context, selector) → bool
+- CheckEnabled(context, selector) → bool
+- CheckEditable(context, selector) → bool
+
+Each returns true/false. Use JSON string return pattern like element.go.
+```
+
+**Checkpoint:**
+```bash
+# Add a test command that runs all checks on an element
+./bin/clicker check-actionable https://example.com "a"
+# Output:
+# Checking actionability for selector: a
+# ✓ Visible: true
+# ✓ Stable: true
+# ✓ ReceivesEvents: true
+# ✓ Enabled: true
+# ✗ Editable: false (expected for <a>)
+```
+
+### Milestone 9.2: Wait For Actionable (Go)
 ```
 Implement internal/features/autowait.go:
-- WaitForSelector(selector string, timeout, interval time.Duration)
-- Poll via script.Evaluate
-- Default: 30s timeout, 100ms interval
-- Return element when found, error on timeout
+
+- WaitForSelector(context, selector, timeout) → error
+  - Polls until element exists
+  - Default: 30s timeout, 100ms interval
+
+- WaitForActionable(context, selector, checks []Check, timeout) → error
+  - Polls until ALL specified checks pass
+  - checks is a list like: [Visible, Stable, ReceivesEvents, Enabled]
+  - Returns nil when all pass, TimeoutError if exceeded
+
+Define check sets for each action:
+- ClickChecks = [Visible, Stable, ReceivesEvents, Enabled]
+- TypeChecks = [Visible, Stable, ReceivesEvents, Enabled, Editable]
 ```
 
-### Milestone 9.2: Proxy Integration
+### Milestone 9.3: Integrate with Actions (Go)
 ```
-Make find commands auto-wait:
-- Intercept element find requests
-- Apply WaitForSelector before returning
-- Pass timeout from client options
+Update input actions to use actionability:
+
+Before Click (in input.go or a new actions.go):
+1. WaitForSelector (element exists)
+2. WaitForActionable(selector, ClickChecks)
+3. Perform click
+
+Before Type:
+1. WaitForSelector
+2. WaitForActionable(selector, TypeChecks)
+3. Perform type
+
+Update CLI commands (click, type) to use these.
 ```
 
-### Milestone 9.3: JS Client Integration
+**Checkpoint:**
+```bash
+# Test with an element that becomes visible after delay
+./bin/clicker click https://example.com "a" --timeout 5s
+# Should wait for element to be actionable, then click
+
+# Test actionability failure (overlay blocking element)
+# Create a test page with an overlay
+./bin/clicker click http://localhost:8080/overlay-test "button"
+# Should timeout with "element does not receive events" error
 ```
-Update vibe.find() to use auto-wait:
-- vibe.find(selector, {timeout?}) 
-- Default 30s timeout
-- Works for both async and sync APIs
+
+### Milestone 9.4: JS Client Timeout Option
+```
+Minimal JS changes - just pass timeout to Go:
+
+- element.click({timeout?}) passes timeout in BiDi command
+- element.type(text, {timeout?}) passes timeout in BiDi command
+- vibe.find(selector, {timeout?}) passes timeout in BiDi command
+
+All actionability logic lives in Go. JS client is a thin wrapper.
+Default timeout: 30s (set in Go, not JS).
 ```
 
 **Checkpoint:**
 ```typescript
-// Test with a slow-loading page or setTimeout injection
 const vibe = await browser.launch();
 await vibe.go('https://example.com');
-// Inject delayed element
+
+// Test with delayed element
 await vibe.evaluate(`
   setTimeout(() => {
-    document.body.innerHTML += '<div id="delayed">Hello</div>';
+    document.body.innerHTML += '<button id="delayed">Click me</button>';
   }, 2000);
 `);
-const el = await vibe.find('#delayed'); // Should wait ~2s
-console.log(await el.text()); // "Hello"
+
+const btn = await vibe.find('#delayed', { timeout: 5000 });
+await btn.click(); // Go handles: visible, stable, receives events, enabled
 await vibe.quit();
 ```
 
