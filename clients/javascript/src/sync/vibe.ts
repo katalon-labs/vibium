@@ -1,5 +1,7 @@
 import { SyncBridge } from './bridge';
 import { ElementSync } from './element';
+import { ElementInfo } from '../element';
+import { FindOptions } from '../vibe';
 
 export class VibeSync {
   private bridge: SyncBridge;
@@ -17,9 +19,13 @@ export class VibeSync {
     return Buffer.from(result.data, 'base64');
   }
 
-  find(selector: string): ElementSync {
-    const result = this.bridge.call<{ elementId: number }>('find', [selector]);
-    return new ElementSync(this.bridge, result.elementId);
+  /**
+   * Find an element by CSS selector.
+   * Waits for element to exist before returning.
+   */
+  find(selector: string, options?: FindOptions): ElementSync {
+    const result = this.bridge.call<{ elementId: number; info: ElementInfo }>('find', [selector, options]);
+    return new ElementSync(this.bridge, result.elementId, result.info);
   }
 
   quit(): void {

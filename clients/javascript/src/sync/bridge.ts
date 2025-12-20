@@ -103,27 +103,29 @@ export class SyncBridge {
     if (this.terminated) return;
 
     try {
-      // Try to send quit command with a short timeout
+      // Try to send quit command with timeout for graceful shutdown
       const cmd = { id: this.commandId++, method: 'quit', args: [] };
       const { port1, port2 } = new MessageChannel();
 
       Atomics.store(this.signal, 0, 0);
       this.worker.postMessage({ cmd, port: port2 }, [port2]);
 
-      // Wait with timeout (500ms max for cleanup)
-      const result = Atomics.wait(this.signal, 0, 0, 500);
+      // Wait with timeout (5s for cleanup - clicker needs time to kill Chrome)
+      const result = Atomics.wait(this.signal, 0, 0, 5000);
       port1.close();
 
-      // If timed out, force terminate
+      // Only force terminate if timed out
       if (result === 'timed-out') {
         this.terminate();
+      } else {
+        // Quit succeeded, just mark as terminated
+        this.terminated = true;
+        activeBridges.delete(this);
       }
     } catch {
       // If anything fails, force terminate
       this.terminate();
     }
-
-    this.terminate();
   }
 
   terminate(): void {

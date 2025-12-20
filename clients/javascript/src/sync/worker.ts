@@ -1,7 +1,7 @@
 import { parentPort, workerData } from 'worker_threads';
 import { browser } from '../browser';
-import { Vibe } from '../vibe';
-import { Element } from '../element';
+import { Vibe, FindOptions } from '../vibe';
+import { Element, ActionOptions } from '../element';
 
 interface WorkerData {
   signal: Int32Array;
@@ -42,26 +42,26 @@ async function handleCommand(cmd: Command): Promise<unknown> {
 
     case 'find': {
       if (!vibe) throw new Error('Browser not launched');
-      const [selector] = cmd.args as [string];
-      const element = await vibe.find(selector);
+      const [selector, options] = cmd.args as [string, FindOptions | undefined];
+      const element = await vibe.find(selector, options);
       const elementId = nextElementId++;
       elements.set(elementId, element);
-      return { elementId };
+      return { elementId, info: element.info };
     }
 
     case 'element.click': {
-      const [elementId] = cmd.args as [number];
+      const [elementId, options] = cmd.args as [number, ActionOptions | undefined];
       const element = elements.get(elementId);
       if (!element) throw new Error(`Element ${elementId} not found`);
-      await element.click();
+      await element.click(options);
       return { success: true };
     }
 
     case 'element.type': {
-      const [elementId, text] = cmd.args as [number, string];
+      const [elementId, text, options] = cmd.args as [number, string, ActionOptions | undefined];
       const element = elements.get(elementId);
       if (!element) throw new Error(`Element ${elementId} not found`);
-      await element.type(text);
+      await element.type(text, options);
       return { success: true };
     }
 

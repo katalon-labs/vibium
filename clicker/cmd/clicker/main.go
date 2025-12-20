@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/vibium/clicker/internal/bidi"
 	"github.com/vibium/clicker/internal/browser"
+	"github.com/vibium/clicker/internal/features"
 	"github.com/vibium/clicker/internal/paths"
 	"github.com/vibium/clicker/internal/process"
 	"github.com/vibium/clicker/internal/proxy"
@@ -40,6 +41,15 @@ func waitAndClose(launchResult *browser.LaunchResult) {
 		time.Sleep(time.Duration(waitClose) * time.Second)
 	}
 	launchResult.Close()
+}
+
+// printCheck prints an actionability check result with a checkmark or X.
+func printCheck(name string, passed bool) {
+	if passed {
+		fmt.Printf("✓ %s: true\n", name)
+	} else {
+		fmt.Printf("✗ %s: false\n", name)
+	}
 }
 
 func main() {
@@ -414,11 +424,162 @@ func main() {
 		},
 	})
 
-	rootCmd.AddCommand(&cobra.Command{
+	clickCmd := &cobra.Command{
 		Use:   "click [url] [selector]",
-		Short: "Navigate to a URL and click an element",
+		Short: "Navigate to a URL and click an element (with actionability checks)",
 		Example: `  clicker click https://example.com "a"
-  # Clicks the link and navigates to the target page`,
+  # Waits for element to be visible, stable, receive events, and enabled
+  # Then clicks the link and navigates to the target page
+
+  clicker click https://example.com "a" --timeout 5s
+  # Custom timeout for actionability checks`,
+		Args: cobra.ExactArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			url := args[0]
+			selector := args[1]
+			timeout, _ := cmd.Flags().GetDuration("timeout")
+
+			fmt.Println("Launching browser...")
+			launchResult, err := browser.Launch(browser.LaunchOptions{Headless: !headed})
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error launching browser: %v\n", err)
+				os.Exit(1)
+			}
+			defer waitAndClose(launchResult)
+
+			fmt.Println("Connecting to BiDi...")
+			conn, err := bidi.Connect(launchResult.WebSocketURL)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error connecting: %v\n", err)
+				os.Exit(1)
+			}
+			defer conn.Close()
+
+			client := bidi.NewClient(conn)
+
+			fmt.Printf("Navigating to %s...\n", url)
+			_, err = client.Navigate("", url)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error navigating: %v\n", err)
+				os.Exit(1)
+			}
+
+			doWaitOpen()
+
+			// Wait for element to be actionable (Visible, Stable, ReceivesEvents, Enabled)
+			fmt.Printf("Waiting for element to be actionable: %s\n", selector)
+			opts := features.WaitOptions{Timeout: timeout}
+			if err := features.WaitForClick(client, "", selector, opts); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Printf("Clicking element: %s\n", selector)
+			err = client.ClickElement("", selector)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error clicking: %v\n", err)
+				os.Exit(1)
+			}
+
+			// TODO: Replace sleep with proper navigation wait (poll URL change or listen for BiDi events)
+			fmt.Println("Waiting for navigation...")
+			time.Sleep(1 * time.Second)
+
+			// Get current URL after click
+			currentURL, err := client.GetCurrentURL()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting URL: %v\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Printf("Click complete! Current URL: %s\n", currentURL)
+		},
+	}
+	clickCmd.Flags().Duration("timeout", features.DefaultTimeout, "Timeout for actionability checks (e.g., 5s, 30s)")
+	rootCmd.AddCommand(clickCmd)
+
+	typeCmd := &cobra.Command{
+		Use:   "type [url] [selector] [text]",
+		Short: "Navigate to a URL, click an element, and type text (with actionability checks)",
+		Example: `  clicker type https://the-internet.herokuapp.com/inputs "input" "12345"
+  # Waits for element to be visible, stable, receive events, enabled, and editable
+  # Then types "12345" into the input
+
+  clicker type https://the-internet.herokuapp.com/inputs "input" "12345" --timeout 5s
+  # Custom timeout for actionability checks`,
+		Args: cobra.ExactArgs(3),
+		Run: func(cmd *cobra.Command, args []string) {
+			url := args[0]
+			selector := args[1]
+			text := args[2]
+			timeout, _ := cmd.Flags().GetDuration("timeout")
+
+			fmt.Println("Launching browser...")
+			launchResult, err := browser.Launch(browser.LaunchOptions{Headless: !headed})
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error launching browser: %v\n", err)
+				os.Exit(1)
+			}
+			defer waitAndClose(launchResult)
+
+			fmt.Println("Connecting to BiDi...")
+			conn, err := bidi.Connect(launchResult.WebSocketURL)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error connecting: %v\n", err)
+				os.Exit(1)
+			}
+			defer conn.Close()
+
+			client := bidi.NewClient(conn)
+
+			fmt.Printf("Navigating to %s...\n", url)
+			_, err = client.Navigate("", url)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error navigating: %v\n", err)
+				os.Exit(1)
+			}
+
+			doWaitOpen()
+
+			// Wait for element to be actionable (Visible, Stable, ReceivesEvents, Enabled, Editable)
+			fmt.Printf("Waiting for element to be actionable: %s\n", selector)
+			opts := features.WaitOptions{Timeout: timeout}
+			if err := features.WaitForType(client, "", selector, opts); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Printf("Typing into element: %s\n", selector)
+			err = client.TypeIntoElement("", selector, text)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error typing: %v\n", err)
+				os.Exit(1)
+			}
+
+			// Get the resulting value
+			value, err := client.GetElementValue("", selector)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting value: %v\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Printf("Typed \"%s\", value is now: %s\n", text, value)
+		},
+	}
+	typeCmd.Flags().Duration("timeout", features.DefaultTimeout, "Timeout for actionability checks (e.g., 5s, 30s)")
+	rootCmd.AddCommand(typeCmd)
+
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "check-actionable [url] [selector]",
+		Short: "Check actionability of an element (Visible, Stable, ReceivesEvents, Enabled, Editable)",
+		Example: `  clicker check-actionable https://example.com "a"
+  # Output:
+  # Checking actionability for selector: a
+  # ✓ Visible: true
+  # ✓ Stable: true
+  # ✓ ReceivesEvents: true
+  # ✓ Enabled: true
+  # ✗ Editable: false`,
 		Args: cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			url := args[0]
@@ -451,81 +612,20 @@ func main() {
 
 			doWaitOpen()
 
-			fmt.Printf("Clicking element: %s\n", selector)
-			err = client.ClickElement("", selector)
+			fmt.Printf("\nChecking actionability for selector: %s\n", selector)
+
+			result, err := features.CheckAll(client, "", selector)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error clicking: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
 
-			// TODO: Replace sleep with proper navigation wait (poll URL change or listen for BiDi events)
-			fmt.Println("Waiting for navigation...")
-			time.Sleep(1 * time.Second)
-
-			// Get current URL after click
-			currentURL, err := client.GetCurrentURL()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error getting URL: %v\n", err)
-				os.Exit(1)
-			}
-
-			fmt.Printf("Click complete! Current URL: %s\n", currentURL)
-		},
-	})
-
-	rootCmd.AddCommand(&cobra.Command{
-		Use:   "type [url] [selector] [text]",
-		Short: "Navigate to a URL, click an element, and type text",
-		Example: `  clicker type https://the-internet.herokuapp.com/inputs "input" "12345"
-  # Shows: Typed "12345", value is now: 12345`,
-		Args: cobra.ExactArgs(3),
-		Run: func(cmd *cobra.Command, args []string) {
-			url := args[0]
-			selector := args[1]
-			text := args[2]
-
-			fmt.Println("Launching browser...")
-			launchResult, err := browser.Launch(browser.LaunchOptions{Headless: !headed})
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error launching browser: %v\n", err)
-				os.Exit(1)
-			}
-			defer waitAndClose(launchResult)
-
-			fmt.Println("Connecting to BiDi...")
-			conn, err := bidi.Connect(launchResult.WebSocketURL)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error connecting: %v\n", err)
-				os.Exit(1)
-			}
-			defer conn.Close()
-
-			client := bidi.NewClient(conn)
-
-			fmt.Printf("Navigating to %s...\n", url)
-			_, err = client.Navigate("", url)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error navigating: %v\n", err)
-				os.Exit(1)
-			}
-
-			doWaitOpen()
-
-			fmt.Printf("Typing into element: %s\n", selector)
-			err = client.TypeIntoElement("", selector, text)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error typing: %v\n", err)
-				os.Exit(1)
-			}
-
-			// Get the resulting value
-			value, err := client.GetElementValue("", selector)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error getting value: %v\n", err)
-				os.Exit(1)
-			}
-
-			fmt.Printf("Typed \"%s\", value is now: %s\n", text, value)
+			// Print results with checkmarks
+			printCheck("Visible", result.Visible)
+			printCheck("Stable", result.Stable)
+			printCheck("ReceivesEvents", result.ReceivesEvents)
+			printCheck("Enabled", result.Enabled)
+			printCheck("Editable", result.Editable)
 		},
 	})
 

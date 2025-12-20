@@ -1,21 +1,31 @@
 import { SyncBridge } from './bridge';
-import { BoundingBox } from '../element';
+import { ActionOptions, BoundingBox, ElementInfo } from '../element';
 
 export class ElementSync {
   private bridge: SyncBridge;
   private elementId: number;
+  readonly info: ElementInfo;
 
-  constructor(bridge: SyncBridge, elementId: number) {
+  constructor(bridge: SyncBridge, elementId: number, info: ElementInfo) {
     this.bridge = bridge;
     this.elementId = elementId;
+    this.info = info;
   }
 
-  click(): void {
-    this.bridge.call('element.click', [this.elementId]);
+  /**
+   * Click the element.
+   * Waits for element to be visible, stable, receive events, and enabled.
+   */
+  click(options?: ActionOptions): void {
+    this.bridge.call('element.click', [this.elementId, options]);
   }
 
-  type(text: string): void {
-    this.bridge.call('element.type', [this.elementId, text]);
+  /**
+   * Type text into the element.
+   * Waits for element to be visible, stable, receive events, enabled, and editable.
+   */
+  type(text: string, options?: ActionOptions): void {
+    this.bridge.call('element.type', [this.elementId, text, options]);
   }
 
   text(): string {
