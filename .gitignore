@@ -43,3 +43,7 @@ clicker/clicker
 
 # macOS
 .DS_Store
+
+# Gradle
+.gradle/
+build/
