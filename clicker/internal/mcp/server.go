@@ -1,5 +1,5 @@
 // Package mcp implements the Model Context Protocol (MCP) server.
-// It provides a JSON-RPC 2.0 interface over stdio for LLM agents.
+// It provides a JSON-RPC 2.0 interface over stdio or HTTP for LLM agents.
 package mcp
 
 import (
@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 
 	"github.com/vibium/clicker/internal/log"
@@ -301,4 +302,49 @@ func (s *Server) writeResponse(resp *Response) error {
 // Close cleans up the server resources.
 func (s *Server) Close() {
 	s.handlers.Close()
+}
+
+// ServeHTTP implements the http.Handler interface for HTTP transport.
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Only accept POST requests
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Read request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	// Process the JSON-RPC request
+	response := s.handleRequest(body)
+
+	// Set content type
+	w.Header().Set("Content-Type", "application/json")
+
+	// Notifications return no response
+	if response == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// Write JSON response
+	data, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+	w.Write(data)
+}
+
+// RunHTTP starts the server listening on the specified port.
+func (s *Server) RunHTTP(port int) error {
+	addr := fmt.Sprintf(":%d", port)
+	log.Debug("mcp http server starting", "addr", addr)
+	fmt.Fprintf(os.Stderr, "MCP HTTP server listening on http://localhost%s\n", addr)
+	return http.ListenAndServe(addr, s)
 }
