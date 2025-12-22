@@ -65,13 +65,13 @@ func GetToolSchemas() []Tool {
 		},
 		{
 			Name:        "browser_screenshot",
-			Description: "Capture a screenshot of the current page",
+			Description: "Capture a screenshot of the current page. If filename is provided (and --screenshot-dir is configured), saves to disk and returns a text confirmation. Otherwise, returns the screenshot as inline base64 image data.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"filename": map[string]interface{}{
 						"type":        "string",
-						"description": "Optional filename to save the screenshot (e.g., screenshot.png)",
+						"description": "Optional filename to save the screenshot (e.g., screenshot.png). Requires --screenshot-dir to be set when starting the server.",
 					},
 				},
 			},
