@@ -172,6 +172,7 @@ main()
 ```bash
 claude mcp add vibium -- npx -y vibium
 ```
+See [Getting Started with MCP](getting-started-mcp.md) for the full guide.
 
 ---
 
