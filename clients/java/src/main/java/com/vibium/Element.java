@@ -5,9 +5,8 @@ import com.vibium.bidi.BiDiClient;
 import com.vibium.bidi.types.BoundingBox;
 import com.vibium.bidi.types.ElementInfo;
 import com.vibium.bidi.types.ScriptResult;
-import com.vibium.exceptions.VibiumException;
+import com.vibium.exceptions.ElementNotFoundException;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,72 +31,88 @@ public class Element {
     }
 
     /**
-     * Click the element.
+     * Click the element with default timeout.
+     * Waits for element to be visible, stable, receive events, and enabled.
      */
     public void click() {
-        double[] center = getCenter();
-        int x = (int) Math.round(center[0]);
-        int y = (int) Math.round(center[1]);
-
-        List<Map<String, Object>> pointerActions = new ArrayList<>();
-        pointerActions.add(Map.of(
-            "type", "pointerMove",
-            "x", x,
-            "y", y,
-            "duration", 0
-        ));
-        pointerActions.add(Map.of(
-            "type", "pointerDown",
-            "button", 0
-        ));
-        pointerActions.add(Map.of(
-            "type", "pointerUp",
-            "button", 0
-        ));
-
-        List<Map<String, Object>> actions = new ArrayList<>();
-        Map<String, Object> pointerAction = new HashMap<>();
-        pointerAction.put("type", "pointer");
-        pointerAction.put("id", "mouse");
-        pointerAction.put("parameters", Map.of("pointerType", "mouse"));
-        pointerAction.put("actions", pointerActions);
-        actions.add(pointerAction);
-
-        Map<String, Object> params = new HashMap<>();
-        params.put("context", context);
-        params.put("actions", actions);
-
-        client.send("input.performActions", params);
+        click(new ActionOptions());
     }
 
     /**
-     * Type text into the element.
+     * Click the element.
+     * Waits for element to be visible, stable, receive events, and enabled.
+     *
+     * @param options Action options (timeout, etc.)
+     */
+    public void click(ActionOptions options) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("context", context);
+        params.put("selector", selector);
+        params.put("timeout", options.getTimeout());
+
+        client.send("vibium:click", params);
+    }
+
+    /**
+     * Type text into the element with default timeout.
+     * Waits for element to be visible, stable, receive events, enabled, and editable.
      *
      * @param text The text to type
      */
     public void type(String text) {
-        // Click to focus first
-        click();
+        type(text, new ActionOptions());
+    }
 
-        // Build key actions for each character
-        List<Map<String, Object>> keyActions = new ArrayList<>();
-        for (char c : text.toCharArray()) {
-            keyActions.add(Map.of("type", "keyDown", "value", String.valueOf(c)));
-            keyActions.add(Map.of("type", "keyUp", "value", String.valueOf(c)));
-        }
+    /**
+     * Type text into the element.
+     * Waits for element to be visible, stable, receive events, enabled, and editable.
+     *
+     * @param text The text to type
+     * @param options Action options (timeout, etc.)
+     */
+    public void type(String text, ActionOptions options) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("context", context);
+        params.put("selector", selector);
+        params.put("text", text);
+        params.put("timeout", options.getTimeout());
 
-        List<Map<String, Object>> actions = new ArrayList<>();
-        Map<String, Object> keyAction = new HashMap<>();
-        keyAction.put("type", "key");
-        keyAction.put("id", "keyboard");
-        keyAction.put("actions", keyActions);
-        actions.add(keyAction);
+        client.send("vibium:type", params);
+    }
+
+    /**
+     * Find a child element by CSS selector.
+     * Waits for element to exist before returning.
+     *
+     * @param selector The CSS selector (relative to this element)
+     * @return The child element
+     */
+    public Element find(String selector) {
+        return find(selector, new FindOptions());
+    }
+
+    /**
+     * Find a child element by CSS selector.
+     * Waits for element to exist before returning.
+     *
+     * @param selector The CSS selector (relative to this element)
+     * @param options Find options (timeout, etc.)
+     * @return The child element
+     */
+    public Element find(String childSelector, FindOptions options) {
+        // Combine parent and child selectors
+        String combinedSelector = this.selector + " " + childSelector;
 
         Map<String, Object> params = new HashMap<>();
         params.put("context", context);
-        params.put("actions", actions);
+        params.put("selector", combinedSelector);
+        params.put("timeout", options.getTimeout());
 
-        client.send("input.performActions", params);
+        var result = client.send("vibium:find", params,
+            com.vibium.bidi.types.VibiumFindResult.class);
+
+        ElementInfo childInfo = new ElementInfo(result.tag(), result.text(), result.box());
+        return new Element(client, context, combinedSelector, childInfo);
     }
 
     /**
@@ -120,7 +135,7 @@ public class Element {
         ScriptResult result = client.send("script.callFunction", params, ScriptResult.class);
 
         if ("null".equals(result.result().type())) {
-            throw new VibiumException("Element not found: " + selector);
+            throw new ElementNotFoundException(selector);
         }
 
         return result.result().value().toString();
@@ -183,7 +198,7 @@ public class Element {
         ScriptResult result = client.send("script.callFunction", params, ScriptResult.class);
 
         if ("null".equals(result.result().type())) {
-            throw new VibiumException("Element not found: " + selector);
+            throw new ElementNotFoundException(selector);
         }
 
         return gson.fromJson(result.result().value().toString(), BoundingBox.class);
@@ -205,12 +220,5 @@ public class Element {
      */
     public ElementInfo getInfo() {
         return info;
-    }
-
-    private double[] getCenter() {
-        return new double[] {
-            info.box().x() + info.box().width() / 2,
-            info.box().y() + info.box().height() / 2
-        };
     }
 }

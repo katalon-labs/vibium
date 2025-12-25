@@ -101,8 +101,11 @@ vibium/
 │       │
 │       ├── src/main/java/com/vibium/
 │       │   ├── Browser.java              # Browser.launch() entry point
-│       │   ├── Vibe.java                 # Vibe class (go, screenshot, quit)
+│       │   ├── Vibe.java                 # Vibe class (go, find, screenshot, evaluate, quit)
+│       │   ├── Element.java              # Element class (click, type, find, text, etc.)
 │       │   ├── LaunchOptions.java        # Launch configuration (builder)
+│       │   ├── FindOptions.java          # Options for find() (timeout)
+│       │   ├── ActionOptions.java        # Options for click/type (timeout)
 │       │   │
 │       │   ├── bidi/                     # BiDi Protocol Layer
 │       │   │   ├── BiDiConnection.java   # WebSocket client
@@ -112,10 +115,14 @@ vibium/
 │       │   │   ├── BiDiEvent.java        # Event record
 │       │   │   ├── BiDiError.java        # Error record
 │       │   │   └── types/
+│       │   │       ├── BoundingBox.java
 │       │   │       ├── BrowsingContextInfo.java
 │       │   │       ├── BrowsingContextTree.java
+│       │   │       ├── ElementInfo.java
 │       │   │       ├── NavigationResult.java
-│       │   │       └── ScreenshotResult.java
+│       │   │       ├── ScreenshotResult.java
+│       │   │       ├── ScriptResult.java
+│       │   │       └── VibiumFindResult.java
 │       │   │
 │       │   ├── clicker/                  # Clicker Binary Management
 │       │   │   ├── BinaryResolver.java   # Binary path resolution
@@ -125,13 +132,16 @@ vibium/
 │       │   └── exceptions/
 │       │       ├── VibiumException.java
 │       │       ├── ConnectionException.java
-│       │       └── TimeoutException.java
+│       │       ├── TimeoutException.java
+│       │       ├── ElementNotFoundException.java
+│       │       └── BrowserCrashedException.java
 │       │
 │       ├── src/test/java/com/vibium/
 │       │   └── BrowserTest.java          # Integration tests
 │       │
 │       ├── examples/
-│       │   └── Screenshot.java           # Example usage
+│       │   ├── Screenshot.java           # Screenshot example
+│       │   └── ClickLink.java            # Click link example
 │       │
 │       └── target/                       # Build output (gitignored)
 │           ├── vibium-*-all.jar          # Fat JAR for Katalon Studio

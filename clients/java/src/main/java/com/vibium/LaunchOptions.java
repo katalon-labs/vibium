@@ -5,12 +5,12 @@ package com.vibium;
  * Mirrors clients/javascript/src/browser.ts LaunchOptions
  */
 public class LaunchOptions {
-    private boolean headless = true;
+    private boolean headless = false;
     private int port = 0;
     private String executablePath;
 
     /**
-     * Create default launch options (headless mode).
+     * Create default launch options (visible browser).
      */
     public LaunchOptions() {
     }

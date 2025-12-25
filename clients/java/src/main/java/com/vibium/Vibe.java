@@ -2,18 +2,17 @@ package com.vibium;
 
 import com.google.gson.Gson;
 import com.vibium.bidi.BiDiClient;
-import com.vibium.bidi.types.BoundingBox;
 import com.vibium.bidi.types.BrowsingContextTree;
 import com.vibium.bidi.types.ElementInfo;
 import com.vibium.bidi.types.NavigationResult;
 import com.vibium.bidi.types.ScreenshotResult;
 import com.vibium.bidi.types.ScriptResult;
+import com.vibium.bidi.types.VibiumFindResult;
 import com.vibium.clicker.ClickerProcess;
 import com.vibium.exceptions.VibiumException;
 
 import java.util.Base64;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -87,44 +86,62 @@ public class Vibe implements AutoCloseable {
     }
 
     /**
-     * Find an element by CSS selector.
+     * Execute JavaScript in the page context.
      *
-     * @param selector The CSS selector
-     * @return The element
-     * @throws VibiumException if the element is not found
+     * @param script The JavaScript code to execute
+     * @return The result of the script execution
      */
-    public Element find(String selector) {
+    @SuppressWarnings("unchecked")
+    public <T> T evaluate(String script) {
         String ctx = getContext();
 
         Map<String, Object> params = new HashMap<>();
-        params.put("functionDeclaration", """
-            (selector) => {
-                const el = document.querySelector(selector);
-                if (!el) return null;
-                const rect = el.getBoundingClientRect();
-                return JSON.stringify({
-                    tag: el.tagName,
-                    text: (el.textContent || '').trim().substring(0, 100),
-                    box: {
-                        x: rect.x,
-                        y: rect.y,
-                        width: rect.width,
-                        height: rect.height
-                    }
-                });
-            }""");
+        params.put("functionDeclaration", "() => { " + script + " }");
         params.put("target", Map.of("context", ctx));
-        params.put("arguments", List.of(Map.of("type", "string", "value", selector)));
-        params.put("awaitPromise", false);
+        params.put("arguments", java.util.List.of());
+        params.put("awaitPromise", true);
         params.put("resultOwnership", "root");
 
         ScriptResult result = client.send("script.callFunction", params, ScriptResult.class);
 
-        if ("null".equals(result.result().type())) {
-            throw new VibiumException("Element not found: " + selector);
+        if (result.result() != null && result.result().value() != null) {
+            return (T) result.result().value();
         }
+        return null;
+    }
 
-        ElementInfo info = gson.fromJson(result.result().value().toString(), ElementInfo.class);
+    /**
+     * Find an element by CSS selector with default timeout.
+     * Waits for element to exist before returning.
+     *
+     * @param selector The CSS selector
+     * @return The element
+     * @throws VibiumException if the element is not found within timeout
+     */
+    public Element find(String selector) {
+        return find(selector, new FindOptions());
+    }
+
+    /**
+     * Find an element by CSS selector.
+     * Waits for element to exist before returning.
+     *
+     * @param selector The CSS selector
+     * @param options Find options (timeout, etc.)
+     * @return The element
+     * @throws VibiumException if the element is not found within timeout
+     */
+    public Element find(String selector, FindOptions options) {
+        String ctx = getContext();
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("context", ctx);
+        params.put("selector", selector);
+        params.put("timeout", options.getTimeout());
+
+        VibiumFindResult result = client.send("vibium:find", params, VibiumFindResult.class);
+
+        ElementInfo info = new ElementInfo(result.tag(), result.text(), result.box());
         return new Element(client, ctx, selector, info);
     }
 
